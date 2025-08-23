@@ -8,7 +8,11 @@ app.use(cors());
 app.use(morgan("dev"));
 app.use(express.json());
 
+const authRoutes = require("./routes/auth.routes");
+
 app.use(express.urlencoded({ extended: true }));
+
+app.use("/auth", authRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
