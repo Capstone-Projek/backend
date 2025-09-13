@@ -1,30 +1,46 @@
-const User = require("../models/users");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const supabase = require("../config/supabaseClient");
 
 const jwtSecret = process.env.JWT_SECRET;
 
+// === REGISTER ===
 async function register(req, res) {
   try {
-    const { email, username, password } = req.body;
+    const { name, email, password } = req.body;
 
-    const existingUser = await User.findOne({ where: { email } });
+    // 1. Cek user sudah ada
+    const { data: existingUser, error: findError } = await supabase
+      .from("user")
+      .select("id")
+      .eq("email", email)
+      .single();
+
+    if (findError && findError.code !== "PGRST116") {
+      // PGRST116 = no rows found (itu aman, berarti belum ada user)
+      throw findError;
+    }
+
     if (existingUser) {
       return res.status(409).json({ message: "Email sudah terdaftar." });
     }
 
+    // 2. Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = await User.create({
-      email,
-      username,
-      password: hashedPassword,
-    });
+    // 3. Insert user baru
+    const { data: newUser, error: insertError } = await supabase
+      .from("user")
+      .insert([{ name, email, password: hashedPassword }])
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
 
     const userResponse = {
       id: newUser.id,
+      name: newUser.name,
       email: newUser.email,
-      username: newUser.username,
     };
 
     res
@@ -36,27 +52,41 @@ async function register(req, res) {
   }
 }
 
+// === LOGIN ===
 async function login(req, res) {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ where: { email } });
-    if (!user) {
+    // 1. Cari user
+    const { data: user, error: findError } = await supabase
+      .from("user")
+      .select("*")
+      .eq("email", email)
+      .single();
+
+    if (findError || !user) {
       return res.status(401).json({ message: "Email atau password salah." });
     }
 
+    // 2. Cek password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       return res.status(401).json({ message: "Email atau password salah." });
     }
 
+    // 3. Generate token
     const token = jwt.sign({ id: user.id, email: user.email }, jwtSecret, {
-      expiresIn: "1h",
+      expiresIn: "24h",
     });
 
     res.status(200).json({
       message: "Login berhasil!",
-      token: token,
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      },
     });
   } catch (error) {
     console.error("Error saat login:", error);
@@ -64,7 +94,4 @@ async function login(req, res) {
   }
 }
 
-module.exports = {
-  register,
-  login,
-};
+module.exports = { register, login };

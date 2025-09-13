@@ -9,10 +9,12 @@ app.use(morgan("dev"));
 app.use(express.json());
 
 const authRoutes = require("./routes/auth.routes");
+const foodRoutes = require("./routes/food.routes");
 
 app.use(express.urlencoded({ extended: true }));
 
-app.use("/auth", authRoutes);
+app.use("/api", authRoutes);
+app.use("/api", foodRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
