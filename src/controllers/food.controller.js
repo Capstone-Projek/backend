@@ -168,3 +168,47 @@ exports.deleteFood = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+/**
+ * GET food by exact name (1 hasil) + images
+ */
+exports.getFoodByExactName = async (req, res) => {
+  try {
+    const { name } = req.query;
+
+    if (!name) {
+      return res.status(400).json({ error: "Parameter 'name' wajib diisi" });
+    }
+
+    // 1. Cari food berdasarkan nama persis
+    const { data: food, error: foodError } = await supabase
+      .from("food")
+      .select("*")
+      .eq("food_name", name) // persis sama, bukan LIKE
+      .single();
+
+    if (foodError) throw foodError;
+    if (!food) {
+      return res.status(404).json({ message: "Makanan tidak ditemukan" });
+    }
+
+    // 2. Ambil semua gambar berdasarkan id_food
+    const { data: images, error: imageError } = await supabase
+      .from("image")
+      .select("id_food, image_url")
+      .eq("id_food", food.id_food);
+
+    if (imageError) throw imageError;
+
+    // 3. Gabungkan food + images
+    const result = {
+      ...food,
+      images: images || [],
+    };
+
+    return res.json(result);
+  } catch (err) {
+    console.error("Error getFoodByExactName:", err.message);
+    res.status(500).json({ error: "Server error", detail: err.message });
+  }
+};
