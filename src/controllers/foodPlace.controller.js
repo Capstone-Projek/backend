@@ -175,7 +175,12 @@ exports.createFoodPlace = async (req, res) => {
       }
     }
 
-    res.status(201).json({ ...place });
+    res.status(201).json({
+      ...place,
+      images: uploadedUrls.map((url) => ({
+        image_url: url,
+      })),
+    });
   } catch (err) {
     console.error("Error createFoodPlace:", err.message);
     res.status(500).json({ error: "Server error", detail: err.message });
