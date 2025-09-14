@@ -1,4 +1,5 @@
 const supabase = require("../config/supabaseClient");
+const { v4: uuidv4 } = require("uuid");
 
 /**
  * GET food_places by name (include images)
@@ -26,10 +27,10 @@ exports.getFoodPlacesByName = async (req, res) => {
       .from("food_places")
       .select(
         `
-        *,
-        food:food_id (food_name),
-        images:image_place (*)
-      `
+            *,
+            food:food_id (food_name),
+            images:image_place (*)
+        `
       )
       .in("food_id", foodIds);
 
@@ -48,10 +49,10 @@ exports.getFoodPlacesByName = async (req, res) => {
 exports.getAllFoodPlaces = async (req, res) => {
   try {
     const { data, error } = await supabase.from("food_places").select(`
-        *,
-        food:food_id (food_name),
-        images:image_place (*)
-      `);
+            *,
+            food:food_id (food_name),
+            images:image_place (*)
+        `);
 
     if (error) throw error;
 
@@ -72,10 +73,10 @@ exports.getFoodPlaceById = async (req, res) => {
       .from("food_places")
       .select(
         `
-        *,
-        food:food_id (food_name),
-        images:image_place (*)
-      `
+            *,
+            food:food_id (food_name),
+            images:image_place (*)
+        `
       )
       .eq("id", id)
       .single();
@@ -106,7 +107,6 @@ exports.createFoodPlace = async (req, res) => {
       latitude,
       longitude,
       food_name,
-      images = [], // array url
     } = req.body;
 
     if (!shop_name || !latitude || !longitude) {
@@ -137,18 +137,45 @@ exports.createFoodPlace = async (req, res) => {
 
     if (placeError) throw placeError;
 
-    // insert images jika ada
-    if (images.length) {
-      const { error: imgError } = await supabase.from("image_place").insert(
-        images.map((url) => ({
-          id_food_place: place.id,
-          image_url: url,
-        }))
-      );
-      if (imgError) throw imgError;
+    // upload images kalau ada
+    if (req.files?.images?.length) {
+      const uploadedUrls = [];
+
+      for (const file of req.files.images) {
+        const ext = file.originalname.split(".").pop();
+        const fileName = `${uuidv4()}.${ext}`;
+        const filePath = `${place.id}/${fileName}`;
+
+        // upload ke storage
+        const { error: uploadError } = await supabase.storage
+          .from("food_place_image")
+          .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+          });
+
+        if (uploadError) throw uploadError;
+
+        // ambil public URL
+        const { data: publicUrlData } = supabase.storage
+          .from("food_place_image")
+          .getPublicUrl(filePath);
+
+        uploadedUrls.push(publicUrlData.publicUrl);
+      }
+
+      // simpan ke image_place
+      if (uploadedUrls.length) {
+        const { error: imgError } = await supabase.from("image_place").insert(
+          uploadedUrls.map((url) => ({
+            id_food_place: place.id,
+            image_url: url,
+          }))
+        );
+        if (imgError) throw imgError;
+      }
     }
 
-    res.status(201).json(place);
+    res.status(201).json({ ...place });
   } catch (err) {
     console.error("Error createFoodPlace:", err.message);
     res.status(500).json({ error: "Server error", detail: err.message });
@@ -156,14 +183,14 @@ exports.createFoodPlace = async (req, res) => {
 };
 
 /**
- * PUT update food_place + images
+ * PUT update food_place + upload images
  */
 exports.updateFoodPlace = async (req, res) => {
   try {
     const { id } = req.params;
-    const { images, ...updates } = req.body;
+    const updates = req.body;
 
-    // update food_place
+    // update data food_place
     const { data: place, error: placeError } = await supabase
       .from("food_places")
       .update(updates)
@@ -175,14 +202,39 @@ exports.updateFoodPlace = async (req, res) => {
     if (!place)
       return res.status(404).json({ message: "Food place not found" });
 
-    // update images (replace all)
-    if (images) {
+    // kalau ada file baru, replace semua gambar lama
+    if (req.files?.images) {
       await supabase.from("image_place").delete().eq("id_food_place", id);
 
-      if (images.length) {
-        const { error: imgError } = await supabase
-          .from("image_place")
-          .insert(images.map((url) => ({ id_food_place: id, image_url: url })));
+      const uploadedUrls = [];
+
+      for (const file of req.files.images) {
+        const ext = file.originalname.split(".").pop();
+        const fileName = `${uuidv4()}.${ext}`;
+        const filePath = `${id}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("food_place_image")
+          .upload(filePath, file.buffer, {
+            contentType: file.mimetype,
+          });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicUrlData } = supabase.storage
+          .from("food_place_image")
+          .getPublicUrl(filePath);
+
+        uploadedUrls.push(publicUrlData.publicUrl);
+      }
+
+      if (uploadedUrls.length) {
+        const { error: imgError } = await supabase.from("image_place").insert(
+          uploadedUrls.map((url) => ({
+            id_food_place: id,
+            image_url: url,
+          }))
+        );
         if (imgError) throw imgError;
       }
     }
