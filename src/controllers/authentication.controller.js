@@ -28,10 +28,17 @@ async function register(req, res) {
     // 2. Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 3. Insert user baru
+    // 3. Insert user baru dengan role statis 'user'
     const { data: newUser, error: insertError } = await supabase
       .from("user")
-      .insert([{ name, email, password: hashedPassword }])
+      .insert([
+        {
+          name,
+          email,
+          password: hashedPassword,
+          role: "user", // <<-- PENAMBAHAN INI
+        },
+      ])
       .select()
       .single();
 
@@ -41,6 +48,7 @@ async function register(req, res) {
       id: newUser.id,
       name: newUser.name,
       email: newUser.email,
+      role: newUser.role, // <<-- TAMBAHKAN ROLE KE RESPONS
     };
 
     res
@@ -75,9 +83,14 @@ async function login(req, res) {
     }
 
     // 3. Generate token
-    const token = jwt.sign({ id: user.id, email: user.email }, jwtSecret, {
-      expiresIn: "24h",
-    });
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      jwtSecret,
+      {
+        // <<-- TAMBAHKAN ROLE KE TOKEN
+        expiresIn: "24h",
+      }
+    );
 
     res.status(200).json({
       message: "Login berhasil!",
@@ -86,6 +99,7 @@ async function login(req, res) {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role, // <<-- TAMBAHKAN ROLE KE RESPONS
       },
     });
   } catch (error) {
