@@ -15,6 +15,7 @@ exports.createFood = async (req, res) => {
       recipes,
       time_cook,
       serving,
+      vidio_url,
     } = req.body;
 
     const files = req.files?.images || []; // multer field "images"
@@ -33,6 +34,7 @@ exports.createFood = async (req, res) => {
           recipes,
           time_cook,
           serving,
+          vidio_url,
         },
       ])
       .select();
