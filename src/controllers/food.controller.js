@@ -18,8 +18,7 @@ exports.createFood = async (req, res) => {
       vidio_url,
     } = req.body;
 
-    const files = req.files?.images || []; // multer field "images"
-
+    const files = req.files?.images || []; 
     // --- 1. Insert food dulu ---
     const { data: foodData, error: foodError } = await supabase
       .from("food")
