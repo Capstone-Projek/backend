@@ -61,6 +61,7 @@ async function register(req, res) {
 }
 
 // === LOGIN ===
+// === LOGIN ===
 async function login(req, res) {
   try {
     const { email, password } = req.body;
@@ -82,24 +83,35 @@ async function login(req, res) {
       return res.status(401).json({ message: "Email atau password salah." });
     }
 
-    // 3. Generate token
-    const token = jwt.sign(
+    // 3. Generate access token (24 jam)
+    const accessToken = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       jwtSecret,
-      {
-        // <<-- TAMBAHKAN ROLE KE TOKEN
-        expiresIn: "24h",
-      }
+      { expiresIn: "24h" }
     );
+
+    // 4. Generate refresh token (30 hari)
+    const refreshToken = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      jwtSecret,
+      { expiresIn: "30d" }
+    );
+
+    // 5. Simpan refresh token ke database
+    await supabase
+      .from("user")
+      .update({ refresh_token: refreshToken })
+      .eq("id", user.id);
 
     res.status(200).json({
       message: "Login berhasil!",
-      token,
+      accessToken,
+      refreshToken,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role, // <<-- TAMBAHKAN ROLE KE RESPONS
+        role: user.role,
       },
     });
   } catch (error) {
@@ -108,4 +120,56 @@ async function login(req, res) {
   }
 }
 
-module.exports = { register, login };
+async function refresh(req, res) {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(401).json({ message: "Refresh token wajib ada." });
+    }
+
+    // 1. Cek refresh token di database
+    const { data: user, error } = await supabase
+      .from("user")
+      .select("*")
+      .eq("refresh_token", refreshToken)
+      .single();
+
+    if (error || !user) {
+      return res.status(403).json({ message: "Refresh token tidak valid." });
+    }
+
+    // 2. Verifikasi refresh token
+    jwt.verify(refreshToken, jwtSecret, (err, decoded) => {
+      if (err) {
+        return res.status(403).json({ message: "Refresh token kadaluarsa." });
+      }
+
+      // 3. Buat access token baru
+      const newAccessToken = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        jwtSecret,
+        { expiresIn: "24h" }
+      );
+
+      res.json({ accessToken: newAccessToken });
+    });
+  } catch (error) {
+    console.error("Error saat refresh token:", error);
+    res.status(500).json({ message: "Terjadi kesalahan server." });
+  }
+}
+
+async function logout(req, res) {
+  try {
+    const { id } = req.body;
+
+    await supabase.from("user").update({ refresh_token: null }).eq("id", id);
+
+    res.json({ message: "Logout berhasil!" });
+  } catch (error) {
+    console.error("Error saat logout:", error);
+    res.status(500).json({ message: "Terjadi kesalahan server." });
+  }
+}
+
+module.exports = { register, login, refresh, logout };
