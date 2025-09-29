@@ -6,8 +6,6 @@ exports.createReview = async (req, res) => {
     const { id_food } = req.params;
     const { review_desc } = req.body;
 
-    // Asumsi: user_id didapatkan dari token atau sesi yang sudah login
-    // Pastikan user_id valid dan ada
     const id_user = req.user.id;
 
     // Cek apakah id_user ada
