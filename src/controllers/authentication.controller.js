@@ -83,16 +83,26 @@ async function login(req, res) {
       return res.status(401).json({ message: "Email atau password salah." });
     }
 
-    // 3. Generate access token (24 jam)
     const accessToken = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        password: user.password,
+        role: user.role,
+      },
       jwtSecret,
       { expiresIn: "24h" }
     );
 
-    // 4. Generate refresh token (30 hari)
     const refreshToken = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        password: user.password,
+        role: user.role,
+      },
       jwtSecret,
       { expiresIn: "30d" }
     );

@@ -4,31 +4,46 @@ const multer = require("multer");
 
 const upload = multer();
 const foodPlaceController = require("../controllers/foodPlace.controller");
+const verifyToken = require("../middlewares/verifyToken");
 
 // GET all food_places (include images)
-router.get("/", foodPlaceController.getAllFoodPlaces);
+router.get("/food-place", verifyToken, foodPlaceController.getAllFoodPlaces);
 
 // GET food_places by name (include images) → /api/food_places/search?name=Bakso
-router.get("/search", foodPlaceController.getFoodPlacesByName);
+router.get(
+  "/food-place-name",
+  verifyToken,
+  foodPlaceController.getFoodPlacesByName
+);
 
 // GET food_place by id (include images)
-router.get("/:id", foodPlaceController.getFoodPlaceById);
+router.get(
+  "/food-place/:id",
+  verifyToken,
+  foodPlaceController.getFoodPlaceById
+);
 
 // POST (multiple images)
 router.post(
-  "/",
+  "/food-place",
+  verifyToken,
   upload.fields([{ name: "images", maxCount: 50 }]),
   foodPlaceController.createFoodPlace
 );
 
 // PUT (multiple images)
 router.put(
-  "/:id",
+  "food-place/:id",
+  verifyToken,
   upload.fields([{ name: "images", maxCount: 50 }]),
   foodPlaceController.updateFoodPlace
 );
 
 // DELETE food_place (images ikut kehapus karena FK cascade)
-router.delete("/:id", foodPlaceController.deleteFoodPlace);
+router.delete(
+  "food-place/:id",
+  verifyToken,
+  foodPlaceController.deleteFoodPlace
+);
 
 module.exports = router;
