@@ -11,7 +11,7 @@ router.get("/food-place", verifyToken, foodPlaceController.getAllFoodPlaces);
 
 // GET food_places by name (include images) → /api/food_places/search?name=Bakso
 router.get(
-  "/food-place-name",
+  "/food-place/search",
   verifyToken,
   foodPlaceController.getFoodPlacesByName
 );
