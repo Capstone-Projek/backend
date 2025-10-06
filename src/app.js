@@ -20,6 +20,7 @@ app.use("/api", authRoutes);
 app.use("/api", foodRoutes);
 app.use("/api", foodPlaceRoutes);
 app.use("/api", reviewRoutes);
+app.use("/api", userRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
