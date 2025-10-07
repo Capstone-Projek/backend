@@ -14,9 +14,9 @@ router.post(
   foodController.createFood
 );
 router.get("/food", verifyToken, foodController.getAllFood);
+router.get("/food/search", verifyToken, foodController.getFoodByExactName);
 router.get("/food/:id", verifyToken, foodController.getFoodById);
 router.put("/food/:id", verifyToken, foodController.updateFood);
 router.delete("/food/:id", verifyToken, foodController.deleteFood);
-router.get("/food/search", verifyToken, foodController.getFoodByExactName);
 
 module.exports = router;
