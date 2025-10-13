@@ -18,7 +18,7 @@ router.get(
 
 // GET food_place by id (include images)
 router.get(
-  "/food-place/:id",
+  "/get-food-place/:id",
   verifyToken,
   foodPlaceController.getFoodPlaceById
 );
@@ -32,16 +32,16 @@ router.post(
 );
 
 // PUT (multiple images)
-router.put(
-  "food-place/:id",
-  verifyToken,
-  upload.fields([{ name: "images", maxCount: 50 }]),
-  foodPlaceController.updateFoodPlace
-);
+// router.put(
+//   "edit-food-place/:id",
+//   verifyToken,
+//   upload.fields([{ name: "images", maxCount: 50 }]),
+//   foodPlaceController.updateFoodPlace
+// );
 
 // DELETE food_place (images ikut kehapus karena FK cascade)
 router.delete(
-  "food-place/:id",
+  "/food-place/:id",
   verifyToken,
   foodPlaceController.deleteFoodPlace
 );

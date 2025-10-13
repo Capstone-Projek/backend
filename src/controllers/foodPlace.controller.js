@@ -66,23 +66,26 @@ exports.getAllFoodPlaces = async (req, res) => {
 /**
  * GET food_place by id (include images)
  */
+// Perbaikan Kode Controller
 exports.getFoodPlaceById = async (req, res) => {
   try {
     const { id } = req.params;
-    const { data, error } = await supabase
+    const { data: results, error } = await supabase // Ganti 'data' menjadi 'results' (array)
       .from("food_places")
       .select(
         `
-            *,
-            food:food_id (food_name),
-            images:image_place (*)
+        *,
+        food:food_id (food_name),
+        images:image_place (*)
         `
       )
-      .eq("id", id)
-      .single();
+      .eq("id", id); // Hapus .single()
 
-    if (error) throw error;
-    if (!data) return res.status(404).json({ message: "Food place not found" });
+    if (error) throw error; // Ambil baris pertama, atau kembalikan 404 jika array kosong
+    if (!results || results.length === 0)
+      return res.status(404).json({ message: "Food place not found" });
+
+    const data = results[0]; // Ambil baris pertama
 
     res.json(data);
   } catch (err) {
