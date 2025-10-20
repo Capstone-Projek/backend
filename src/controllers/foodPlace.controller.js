@@ -119,6 +119,37 @@ exports.getFoodPlaceById = async (req, res) => {
 };
 
 /**
+ * GET food_place by food id (include images)
+ */
+exports.getFoodPlaceByFoodId = async (req, res) => {
+  try {
+    const { food_id } = req.params;
+
+    const { data, error } = await supabase
+      .from("food_places")
+      .select(`
+        *,
+        food:food_id (food_name),
+        images:image_place (*)
+      `)
+      .eq("food_id", food_id);
+
+    if (error) throw error;
+
+    const formatted = data.map((item) => ({
+      ...item,
+      food_name: item.food?.food_name ?? "",
+      images: item.images ?? [],
+    }));
+
+    res.json(formatted);
+  } catch (err) {
+    console.error("Error getAllFoodPlaces:", err.message);
+    res.status(500).json({ error: "Server error", detail: err.message });
+  }
+};
+
+/**
  * POST create new food_place + images
  */
 exports.createFoodPlace = async (req, res) => {

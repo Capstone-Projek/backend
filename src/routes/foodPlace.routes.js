@@ -23,6 +23,13 @@ router.get(
   foodPlaceController.getFoodPlaceById
 );
 
+// GET food_place by food_id (include images)
+router.get(
+  "/get-food-place/food/:food_id",
+  verifyToken,
+  foodPlaceController.getFoodPlaceByFoodId
+);
+
 // POST (multiple images)
 router.post(
   "/food-place",
