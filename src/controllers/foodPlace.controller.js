@@ -140,7 +140,7 @@ exports.createFoodPlace = async (req, res) => {
       return res
         .status(400)
         .json({ error: "shop_name, latitude, longitude wajib diisi" });
-    } // 1. Insert food_place
+    }
 
     const { data: place, error: placeError } = await supabase
       .from("food_places")
@@ -163,63 +163,10 @@ exports.createFoodPlace = async (req, res) => {
 
     if (placeError) throw placeError;
 
-    let uploadedUrls = []; // Definisikan di luar scope if // 2. Upload images (jika ada) dan simpan ke image_place
-
-    if (req.files?.images?.length) {
-      for (const file of req.files.images) {
-        const ext = file.originalname.split(".").pop();
-        const fileName = `${uuidv4()}.${ext}`;
-        const filePath = `${place.id}/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("food_place_image")
-          .upload(filePath, file.buffer, {
-            contentType: file.mimetype,
-          });
-
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase.storage
-          .from("food_place_image")
-          .getPublicUrl(filePath);
-
-        uploadedUrls.push(publicUrlData.publicUrl);
-      }
-
-      if (uploadedUrls.length) {
-        const { error: imgError } = await supabase.from("image_place").insert(
-          uploadedUrls.map((url) => ({
-            id_food_place: place.id,
-            image_url: url,
-          }))
-        );
-        if (imgError) throw imgError;
-      }
-    }
-
-    // 3. Ambil data lengkap (termasuk relasi food dan images) untuk response yang konsisten
-    const { data: finalPlace, error: finalError } = await supabase
-      .from("food_places")
-      .select(
-        `
-            *,
-            food:food_id (food_name),
-            images:image_place (*)
-            `
-      )
-      .eq("id", place.id)
-      .single();
-
-    if (finalError) throw finalError;
-
-    // 4. Format agar konsisten dengan GET
-    const formatted = {
-      ...finalPlace,
-      food_name: finalPlace.food?.food_name ?? "",
-      images: finalPlace.images ?? [],
-    };
-
-    res.status(201).json(formatted);
+    res.status(201).json({
+      message: "Food place berhasil dibuat",
+      data: place,
+    });
   } catch (err) {
     console.error("Error createFoodPlace:", err.message);
     res.status(500).json({ error: "Server error", detail: err.message });
@@ -232,87 +179,32 @@ exports.createFoodPlace = async (req, res) => {
 exports.updateFoodPlace = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body; // 1. Update data utama di tabel food_places
+    const updates = req.body;
 
-    const { error: placeError } = await supabase
+    const { error: updateError } = await supabase
       .from("food_places")
       .update(updates)
       .eq("id", id);
-    // Kita tidak menggunakan .select() di sini karena kita akan fetch ulang di akhir
 
-    if (placeError) throw placeError;
-    // Cek apakah data benar-benar ada sebelum update
-    const { count: exists } = await supabase
+    if (updateError) throw updateError;
+
+    const { data: updated, error: fetchError } = await supabase
       .from("food_places")
-      .select("id", { count: "exact" })
-      .eq("id", id);
-    if (exists === 0)
-      return res.status(404).json({ message: "Food place not found" }); // 2. Jika ada file baru, tambahkan ke image_place
-
-    const files = req.files?.images || req.files || [];
-    if (files && files.length > 0) {
-      const uploadedUrls = [];
-
-      for (const file of files) {
-        const ext = file.originalname.split(".").pop();
-        const fileName = `${uuidv4()}.${ext}`;
-        const filePath = `${id}/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("food_place_image")
-          .upload(filePath, file.buffer, {
-            contentType: file.mimetype,
-          });
-        if (uploadError) throw uploadError;
-
-        const { data: publicUrlData } = supabase.storage
-          .from("food_place_image")
-          .getPublicUrl(filePath);
-
-        uploadedUrls.push(publicUrlData.publicUrl);
-      }
-
-      if (uploadedUrls.length) {
-        const { error: imgError } = await supabase.from("image_place").insert(
-          uploadedUrls.map((url) => ({
-            id_food_place: id,
-            image_url: url,
-          }))
-        );
-        if (imgError) throw imgError;
-      }
-    }
-
-    // 3. Ambil semua data terbaru (termasuk relasi food dan images)
-    const { data: results, error: fetchError } = await supabase
-      .from("food_places")
-      .select(
-        `
-        *,
-        food:food_id (food_name),
-        images:image_place (*)
-        `
-      )
+      .select(`*, food:food_id(food_name), images:image_place(*)`)
       .eq("id", id)
       .single();
 
-    if (fetchError) throw fetchError; // 4. Format hasil akhir agar sesuai model Flutter
-
-    const formatted = {
-      ...results,
-      food_name: results.food?.food_name ?? "",
-      images: results.images ?? [],
-    };
-
-    return res.status(200).json(formatted);
-  } catch (err) {
-    console.error("❌ Error updateFoodPlace:", err.message);
-    res.status(500).json({
-      error: "Server error",
-      detail: err.message,
+    if (fetchError) throw fetchError;
+    res.status(201).json({
+      message: "Food place berhasil diupdate",
+      data: updated,
     });
+  } catch (err) {
+    console.error("Error updateFoodPlace:", err.message);
+    res.status(500).json({ error: "Server error", detail: err.message });
   }
 };
+
 /**
  * DELETE food_place (images ikut kehapus karena FK cascade)
  */
@@ -325,6 +217,136 @@ exports.deleteFoodPlace = async (req, res) => {
     res.json({ message: "Food place deleted successfully" });
   } catch (err) {
     console.error("Error deleteFoodPlace:", err.message);
+    res.status(500).json({ error: "Server error", detail: err.message });
+  }
+};
+
+exports.insertImages = async (req, res) => {
+  try {
+    const { id_food_place } = req.body;
+
+    if (!id_food_place) {
+      return res.status(400).json({ error: "id_food_place wajib diisi" });
+    }
+
+    if (!req.files?.images?.length) {
+      return res.status(400).json({ error: "Tidak ada file gambar dikirim" });
+    }
+
+    const uploadedUrls = [];
+
+    for (const file of req.files.images) {
+      const ext = file.originalname.split(".").pop();
+      const fileName = `${uuidv4()}.${ext}`;
+      const filePath = `${id_food_place}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("food_place_image")
+        .upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+        });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from("food_place_image")
+        .getPublicUrl(filePath);
+
+      uploadedUrls.push(publicUrlData.publicUrl);
+    }
+
+    if (uploadedUrls.length) {
+      const { error: imgError } = await supabase.from("image_place").insert(
+        uploadedUrls.map((url) => ({
+          id_food_place,
+          image_url: url,
+        }))
+      );
+      if (imgError) throw imgError;
+    }
+
+    res.status(201).json({
+      message: "Gambar berhasil diunggah",
+      urls: uploadedUrls,
+    });
+  } catch (err) {
+    console.error("Error insertImages:", err.message);
+    res.status(500).json({ error: "Server error", detail: err.message });
+  }
+};
+
+// ⬆️ Update image (hapus lama + upload baru)
+exports.updateImages = async (req, res) => {
+  try {
+    const { id_food_place } = req.body;
+
+    if (!id_food_place) {
+      return res.status(400).json({ error: "id_food_place wajib diisi" });
+    }
+
+    // Hapus semua image lama dari tabel dan storage
+    const { data: oldImages, error: getError } = await supabase
+      .from("image_place")
+      .select("image_url")
+      .eq("id_food_place", id_food_place);
+
+    if (getError) throw getError;
+
+    for (const img of oldImages) {
+      const path = img.image_url.split("/").pop();
+      await supabase.storage
+        .from("food_place_image")
+        .remove([`${id_food_place}/${path}`]);
+    }
+
+    await supabase
+      .from("image_place")
+      .delete()
+      .eq("id_food_place", id_food_place);
+
+    // Upload gambar baru
+    if (!req.files?.images?.length) {
+      return res
+        .status(400)
+        .json({ error: "Tidak ada file gambar baru dikirim" });
+    }
+
+    const uploadedUrls = [];
+
+    for (const file of req.files.images) {
+      const ext = file.originalname.split(".").pop();
+      const fileName = `${uuidv4()}.${ext}`;
+      const filePath = `${id_food_place}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("food_place_image")
+        .upload(filePath, file.buffer, {
+          contentType: file.mimetype,
+        });
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from("food_place_image")
+        .getPublicUrl(filePath);
+
+      uploadedUrls.push(publicUrlData.publicUrl);
+    }
+
+    if (uploadedUrls.length) {
+      const { error: insertError } = await supabase.from("image_place").insert(
+        uploadedUrls.map((url) => ({
+          id_food_place,
+          image_url: url,
+        }))
+      );
+      if (insertError) throw insertError;
+    }
+
+    res.status(200).json({
+      message: "Gambar berhasil diperbarui",
+      urls: uploadedUrls,
+    });
+  } catch (err) {
+    console.error("Error updateImages:", err.message);
     res.status(500).json({ error: "Server error", detail: err.message });
   }
 };

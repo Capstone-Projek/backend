@@ -32,18 +32,33 @@ router.post(
 );
 
 // PUT (multiple images)
-// router.put(
-//   "edit-food-place/:id",
-//   verifyToken,
-//   upload.fields([{ name: "images", maxCount: 50 }]),
-//   foodPlaceController.updateFoodPlace
-// );
+router.put(
+  "/edit-food-place/:id",
+  verifyToken,
+  upload.fields([{ name: "images", maxCount: 50 }]),
+  foodPlaceController.updateFoodPlace
+);
 
 // DELETE food_place (images ikut kehapus karena FK cascade)
 router.delete(
   "/food-place/:id",
   verifyToken,
   foodPlaceController.deleteFoodPlace
+);
+
+router.post(
+  "/food-place/image",
+  verifyToken,
+  upload.fields([{ name: "images", maxCount: 50 }]),
+  foodPlaceController.insertImages
+);
+
+// PUT: update gambar (hapus lama, upload baru)
+router.put(
+  "/food-place/image",
+  verifyToken,
+  upload.fields([{ name: "images", maxCount: 50 }]),
+  foodPlaceController.updateImages
 );
 
 module.exports = router;
