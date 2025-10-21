@@ -127,11 +127,13 @@ exports.getFoodPlaceByFoodId = async (req, res) => {
 
     const { data, error } = await supabase
       .from("food_places")
-      .select(`
+      .select(
+        `
         *,
         food:food_id (food_name),
         images:image_place (*)
-      `)
+      `
+      )
       .eq("food_id", food_id);
 
     if (error) throw error;
@@ -269,7 +271,8 @@ exports.insertImages = async (req, res) => {
     for (const file of req.files.images) {
       const ext = file.originalname.split(".").pop();
       const fileName = `${uuidv4()}.${ext}`;
-      const filePath = `${id_food_place}/${fileName}`;
+      // ✅ Path Upload: Menyertakan subfolder 'public/'
+      const filePath = `public/${id_food_place}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("food_place_image")
@@ -305,16 +308,17 @@ exports.insertImages = async (req, res) => {
   }
 };
 
-// ⬆️ Update image (hapus lama + upload baru)
+// -------------------------------------------------------------------------
+// 2. UPDATE IMAGES (Hapus Lama + Upload Baru)
+// -------------------------------------------------------------------------
 exports.updateImages = async (req, res) => {
   try {
     const { id_food_place } = req.body;
 
     if (!id_food_place) {
       return res.status(400).json({ error: "id_food_place wajib diisi" });
-    }
+    } // 1. Ambil semua image lama dari tabel
 
-    // Hapus semua image lama dari tabel dan storage
     const { data: oldImages, error: getError } = await supabase
       .from("image_place")
       .select("image_url")
@@ -322,19 +326,47 @@ exports.updateImages = async (req, res) => {
 
     if (getError) throw getError;
 
+    // 2. Persiapan untuk menghapus dari Storage
+    const filesToRemove = [];
+    const bucketName = "food_place_image";
+    const urlSegment = `/object/public/${bucketName}/`; // Segmen yang dicari di URL
+
     for (const img of oldImages) {
-      const path = img.image_url.split("/").pop();
-      await supabase.storage
-        .from("food_place_image")
-        .remove([`${id_food_place}/${path}`]);
+      // Logika ekstraksi path relatif (misal: public/1/file.png)
+      const startIndex = img.image_url.indexOf(urlSegment);
+
+      if (startIndex !== -1) {
+        const relativePath = img.image_url.substring(
+          startIndex + urlSegment.length
+        );
+        filesToRemove.push(relativePath);
+      } else {
+        console.warn(
+          `Could not parse path for URL during removal (using fallback): ${img.image_url}`
+        );
+        const fileName = img.image_url.split("/").pop();
+        filesToRemove.push(`public/${id_food_place}/${fileName}`);
+      }
     }
 
+    // 3. Hapus dari Storage
+    if (filesToRemove.length > 0) {
+      const { error: removeError } = await supabase.storage
+        .from(bucketName)
+        .remove(filesToRemove);
+
+      if (removeError) {
+        console.error("Error removing files from storage:", removeError);
+        // Tetap lanjutkan meskipun penghapusan storage gagal
+      }
+    }
+
+    // 4. Hapus record dari database
     await supabase
       .from("image_place")
       .delete()
-      .eq("id_food_place", id_food_place);
+      .eq("id_food_place", id_food_place); // 5. Upload gambar baru
 
-    // Upload gambar baru
     if (!req.files?.images?.length) {
       return res
         .status(400)
@@ -346,7 +378,9 @@ exports.updateImages = async (req, res) => {
     for (const file of req.files.images) {
       const ext = file.originalname.split(".").pop();
       const fileName = `${uuidv4()}.${ext}`;
-      const filePath = `${id_food_place}/${fileName}`;
+
+      // ✅ Path Upload yang Benar
+      const filePath = `public/${id_food_place}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("food_place_image")
@@ -360,7 +394,7 @@ exports.updateImages = async (req, res) => {
         .getPublicUrl(filePath);
 
       uploadedUrls.push(publicUrlData.publicUrl);
-    }
+    } // 6. Insert URL baru ke database
 
     if (uploadedUrls.length) {
       const { error: insertError } = await supabase.from("image_place").insert(
