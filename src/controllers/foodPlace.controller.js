@@ -175,7 +175,9 @@ exports.createFoodPlace = async (req, res) => {
         .json({ error: "shop_name, latitude, longitude wajib diisi" });
     }
 
-    const { data: place, error: placeError } = await supabase
+    const files = req.files?.images || []; // --- 1. Insert food_places ---
+
+    const { data: placeData, error: placeError } = await supabase
       .from("food_places")
       .insert([
         {
@@ -191,15 +193,44 @@ exports.createFoodPlace = async (req, res) => {
           food_name,
         },
       ])
-      .select()
-      .single();
+      .select(); // Menggunakan .select() untuk mendapatkan ID yang baru
 
     if (placeError) throw placeError;
+    const place = placeData[0];
+    const id_food_place = place.id; // Ambil ID yang baru di-generate // --- 2. Upload images ---
 
-    res.status(201).json({
-      message: "Food place berhasil dibuat",
-      data: place,
-    });
+    let uploadedImages = [];
+    if (files.length > 0) {
+      for (const file of files) {
+        // Mendapatkan ekstensi file (menggunakan logika dari createFood)
+        const ext = path.extname(file.originalname);
+        const fileName = `public/${id_food_place}/${uuidv4()}${ext}`; // Path: public/{id}/{filename}
+
+        // Upload ke bucket "food_place_image"
+        const { error: uploadError } = await supabase.storage
+          .from("food_place_image") // ⭐️ Gunakan bucket Resto
+          .upload(fileName, file.buffer, { contentType: file.mimetype });
+        if (uploadError) throw uploadError;
+
+        // Ambil Public URL
+        const { data: publicUrlData } = supabase.storage
+          .from("food_place_image")
+          .getPublicUrl(fileName);
+        const imageUrl = publicUrlData.publicUrl;
+
+        // Insert URL ke tabel relasi 'image_place'
+        const { data: imageData, error: imageError } = await supabase
+          .from("image_place") // ⭐️ Gunakan tabel relasi Resto
+          .insert([{ id_food_place: id_food_place, image_url: imageUrl }])
+          .select();
+
+        if (imageError) throw imageError;
+        uploadedImages.push(imageData[0]);
+      }
+    }
+
+    // Kembalikan data lengkap (tempat makan + gambar)
+    res.status(201).json({ ...place, images: uploadedImages });
   } catch (err) {
     console.error("Error createFoodPlace:", err.message);
     res.status(500).json({ error: "Server error", detail: err.message });
