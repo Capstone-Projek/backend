@@ -1,5 +1,6 @@
 const supabase = require("../config/supabaseClient");
 const { v4: uuidv4 } = require("uuid");
+const path = require("path");
 
 /**
  * GET food_places by name (include images)
